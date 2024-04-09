@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Formatador de Números de Telefone Avançado</title>
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Titillium Web', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            font-size: 40px; /* Tamanho do título ajustado para 40 */
+            font-weight: bold;
+            color: #00412B; /* Cor verde dos botões */
+            margin-bottom: 10px; /* Espaço adicionado abaixo do título */
+        }
+        .subheader {
+            font-size: 14px;
+            color: #00412B; /* Cor verde dos botões */
+            margin-bottom: 20px;
+            white-space: pre-wrap; /* Permite a quebra de linha no CSS */
+        }
+        h2 {
+            font-weight: bold;
+        }
+        textarea, input, button, span {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-family: 'Titillium Web', sans-serif;
+        }
+        button {
+            background-color: #00412B;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #003621;
+        }
+        span {
+            display: block;
+            margin: 5px 0;
+            padding: 0;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">Formatador automático de dados para WiFeed Marketing</div>
+    <div class="subheader">Os dados serão formatados para o formato: DDI + DDD + 9 + 8 dígitos. Caso hajam números sem DDD ou faltando algo, serão descartados.</div>
+    <h2>Entrada de Dados</h2>
+    <textarea id="inputNumbers" rows="10" cols="50" placeholder="Cole os números aqui ou carregue um arquivo..."></textarea><br>
+    <span id="numerosEncontrados">Números encontrados: 0</span>
+    <input type="file" id="fileInput" accept=".txt, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="carregarDoArquivo()"><br>
+    <button onclick="formatarTelefones()">Formatar Números</button><br>
+    <h2>Números Formatados</h2>
+    <textarea id="outputNumbers" rows="10" cols="50" placeholder="Resultados aparecerão aqui..."></textarea><br>
+    <span id="numerosFormatados">Quantidade de números após formatação: 0</span>
+    <button onclick="copiarParaClipboard()">Copiar</button>
+    <button onclick="baixarComoCSV()">Baixar CSV</button>
+
+    <script>
+        function atualizarContagemOriginal() {
+            const input = document.getElementById('inputNumbers').value;
+            const linhas = input.split('\n').filter(Boolean);
+            document.getElementById('numerosEncontrados').textContent = 'Números encontrados: ' + linhas.length;
+        }
+
+        function carregarDoArquivo() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('inputNumbers').value = e.target.result;
+                alert('Arquivo carregado com sucesso!');
+                atualizarContagemOriginal();
+            };
+            if (file.type === 'text/plain') {
+                reader.readAsText(file);
+            } else if (file.type === 'text/csv' || /\.(csv|xlsx)$/.test(file.name)) {
+                lerComoExcelOuCSV(file);
+            }
+        }
+
+        function lerComoExcelOuCSV(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const csv = XLSX.utils.sheet_to_csv(worksheet);
+                document.getElementById('inputNumbers').value = csv.split('\n').map(row => row.split(',')[0]).join('\n');
+                alert('Arquivo carregado com sucesso!');
+                atualizarContagemOriginal();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+       function formatarTelefones() {
+    const dddsValidos = new Set([
+        "11","12","13","14","15","16","17","18","19","21","22","24","27","28","31","32","33","34","35","37","38",
+        "41","42","43","44","45","46","47","48","49","51","53","54","55","61","62","63","64","65","66","67","68",
+        "69","71","73","74","75","77","79","81","82","83","84","85","86","87","88","89","91","92","93","94","95",
+        "96","97","98","99"
+    ]);
+    const input = document.getElementById('inputNumbers').value;
+    const linhas = input.split('\n');
+    let numerosFormatados = [];
+    let numerosUnicos = new Set();
+
+    linhas.forEach(numero => {
+        numero = numero.replace(/\D/g, ''); // Remove caracteres não numéricos
+        if (numero.length === 10 && dddsValidos.has(numero.slice(0, 2))) {
+            numero = numero.slice(0, 2) + '9' + numero.slice(2); // Adiciona o 9 após o DDD
+        }
+        if ((numero.length === 11 && dddsValidos.has(numero.slice(0, 2)) && numero[2] === '9') || 
+            (numero.length === 13 && numero.startsWith('55') && dddsValidos.has(numero.slice(2, 4)) && numero[4] === '9')) {
+            // Verifica se o número tem 11 dígitos com o 9 correto ou se tem 13 dígitos, começa com 55, tem um DDD válido e o 9 no lugar correto
+            const numeroFormatado = numero.length === 11 ? '55' + numero : numero; // Prepara o número para o formato internacional, se necessário
+            if (!numerosUnicos.has(numeroFormatado)) { // Verifica duplicidade
+                numerosUnicos.add(numeroFormatado);
+                numerosFormatados.push(numeroFormatado); // Adiciona ao resultado se único
+            }
+        }
+    });
+
+    document.getElementById('outputNumbers').value = numerosFormatados.join('\n');
+    document.getElementById('numerosFormatados').textContent = 'Quantidade de números após formatação: ' + numerosFormatados.length;
+}
+
+
+        function copiarParaClipboard() {
+            const output = document.getElementById('outputNumbers');
+            output.select();
+            document.execCommand('copy');
+        }
+
+        function baixarComoCSV() {
+            const output = document.getElementById('outputNumbers').value;
+            const blob = new Blob([output], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'numeros_formatados.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Evento para atualizar a contagem quando o texto muda
+        document.getElementById('inputNumbers').addEventListener('input', atualizarContagemOriginal);
+    </script>
+</body>
+</html>
